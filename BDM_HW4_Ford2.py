@@ -8,6 +8,7 @@ import json
 import pyspark.sql.types as T
 import datetime
 import argparse
+import numpy as np
 
 
 if __name__=='__main__':
@@ -54,12 +55,19 @@ if __name__=='__main__':
            # .where(f"date=='{date}'")
     #Credit to the professor, I leverage this piece of code from class
 
+    def find_median(values_list):
+        try:
+            median = np.median(values_list)
+            return round(float(median), 2)
+        except Exception:
+            return None
 
     categories = ["big_box_grocers", "convenience_stores", "drinking_places", "full_service_restaurants","limited_service_restaurants", "pharmacies_and_drug_stores", "snack_and_bakeries", "specialty_food_stores", "supermarkets_except_convenience_stores"]
 
     for c in categories:
         df.join(filteredCorePlaces, ["placekey"], "inner").groupBy("date","file_name")\
-            .agg(F.percentile_approx("visits", 0.5).alias('median'), F.round(F.stddev("visits")).cast("integer").alias('std'))\
+            .agg(F.collect_list("visits").alias('visit'), F.round(F.stddev("visits")).cast("integer").alias('std'))\
+            .withColumn("median", median_finder('visit'))\
             .withColumn("low", when(F.col("std") > F.col("median"), 0).otherwise(F.col("median") - (F.col("std"))))\
             .withColumn("high", F.col("median") + F.col("std"))\
             .withColumn("year", F.year("date"))\
